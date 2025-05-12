@@ -446,6 +446,56 @@ const dashboardStatistics = asyncHandler(async (req, res) => {
   }
 });
 
+const autoAssignTasks = asyncHandler(async (req, res) => {
+  try {
+    const priorityMap = { high: 1, medium: 2, normal: 3, low: 4 };
+
+    const unassignedTasks = await Task.find({
+      stage: "todo",
+      team: { $size: 0 },
+      isTrashed: false,
+    });
+
+    unassignedTasks.sort((a, b) => priorityMap[a.priority] - priorityMap[b.priority]);
+
+    const users = await User.find({ isActive: true });
+
+    const userTaskCounts = {};
+    for (const user of users) {
+      userTaskCounts[user._id] = user.tasks?.length || 0;
+    }
+
+    for (const task of unassignedTasks) {
+      const [bestUserId] = Object.entries(userTaskCounts)
+        .sort((a, b) => a[1] - b[1])
+        .map(([id]) => id);
+
+      if (bestUserId) {
+        task.team.push(bestUserId);
+        await task.save();
+
+        await User.findByIdAndUpdate(bestUserId, { $push: { tasks: task._id } });
+
+        await Notice.create({
+          team: [bestUserId],
+          text: `Task "${task.title}" (priority: ${task.priority}) auto-assigned to you.`,
+          task: task._id,
+        });
+
+        userTaskCounts[bestUserId]++;
+      }
+    }
+
+    res.status(200).json({
+      status: true,
+      message: "Tasks auto-assigned ",
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ status: false, message: error.message });
+  }
+});
+
 export {
   createSubTask,
   createTask,
@@ -459,4 +509,5 @@ export {
   updateSubTaskStage,
   updateTask,
   updateTaskStage,
+  autoAssignTasks,
 };

@@ -2,50 +2,104 @@ import React, { useEffect, useState } from "react";
 import { FaList } from "react-icons/fa";
 import { IoMdAdd } from "react-icons/io";
 import { MdGridView } from "react-icons/md";
-import { useParams, useSearchParams } from "react-router-dom";
+import { useParams, useSearchParams, useNavigate } from "react-router-dom";
 import { Button, Loading, Table, Tabs, Title } from "../components";
 import { AddTask, BoardView, TaskTitle } from "../components/tasks";
 import { useGetAllTaskQuery } from "../redux/slices/api/taskApiSlice";
 import { TASK_TYPE } from "../utils";
-import { useSelector } from "react-redux";
+import { useSelector, useDispatch } from "react-redux";
+import { logout, selectIsAuthenticated } from "../redux/slices/authSlice";
+import { toast } from "sonner";
 
 const TABS = [
   { title: "Board View", icon: <MdGridView /> },
   { title: "List View", icon: <FaList /> },
 ];
 
+// Map URL parameters to correct stage values
+const STAGE_MAP = {
+  'inprogress': 'in progress',
+  'todo': 'todo',
+  'completed': 'completed'
+};
+
 const Tasks = () => {
   const params = useParams();
   const { user } = useSelector((state) => state.auth);
+  const isAuthenticated = useSelector(selectIsAuthenticated);
   const [searchParams] = useSearchParams();
   const [searchTerm] = useState(searchParams.get("search") || "");
+  const dispatch = useDispatch();
+  const navigate = useNavigate();
 
   const [selected, setSelected] = useState(0);
   const [open, setOpen] = useState(false);
 
-  const status = params?.status || "";
+  // Map the URL parameter to the correct stage value
+  const rawStatus = params?.status || "";
+  const status = STAGE_MAP[rawStatus.toLowerCase()] || rawStatus.toLowerCase();
 
-  const { data, isLoading, refetch } = useGetAllTaskQuery({
+  const { data: taskData, isLoading, error } = useGetAllTaskQuery({
     strQuery: status,
     isTrashed: "",
     search: searchTerm,
+  }, {
+    skip: !isAuthenticated
   });
 
   useEffect(() => {
-    refetch();
-    window.scrollTo({ top: 0, left: 0, behavior: "smooth" });
-  }, [open]);
+    if (!isAuthenticated) {
+      navigate('/log-in');
+      return;
+    }
 
-  return isLoading ? (
-    <div className='py-10'>
-      <Loading />
-    </div>
-  ) : (
+    if (error) {
+      console.error('Task fetch error:', error);
+      if (error.status === 401) {
+        dispatch(logout());
+        navigate('/log-in');
+        return;
+      }
+      toast.error(error.data?.message || 'Failed to load tasks');
+    }
+  }, [isAuthenticated, error, navigate, dispatch]);
+
+  // Debug logging
+  useEffect(() => {
+    console.log('URL status parameter:', rawStatus);
+    console.log('Mapped status:', status);
+    console.log('Tasks data:', taskData);
+  }, [rawStatus, status, taskData]);
+
+  if (!isAuthenticated) {
+    return null;
+  }
+
+  if (isLoading) {
+    return (
+      <div className='py-10'>
+        <Loading />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className='py-10 text-center text-red-500'>
+        Error loading tasks: {error.data?.message || 'Something went wrong'}
+      </div>
+    );
+  }
+
+  // Check if we have valid task data
+  const tasks = taskData?.status ? taskData.tasks : [];
+
+  return (
     <div className='w-full'>
       <div className='flex items-center justify-between mb-4'>
-        <Title title={status ? `${status} Tasks` : "Tasks"} />
+        <Title title={rawStatus ? `${rawStatus} Tasks` : "Tasks"} />
 
-        {!status && user?.isAdmin && (
+        {!rawStatus && user?.isAdmin && (
           <Button
             label='Create Task'
             icon={<IoMdAdd className='text-lg' />}
@@ -57,7 +111,7 @@ const Tasks = () => {
 
       <div>
         <Tabs tabs={TABS} setSelected={setSelected}>
-          {!status && (
+          {!rawStatus && (
             <div className='w-full flex justify-between gap-4 md:gap-x-12 py-4'>
               <TaskTitle label='To Do' className={TASK_TYPE.todo} />
               <TaskTitle
@@ -69,9 +123,9 @@ const Tasks = () => {
           )}
 
           {selected === 0 ? (
-            <BoardView tasks={data?.tasks} />
+            <BoardView tasks={tasks} />
           ) : (
-            <Table tasks={data?.tasks} />
+            <Table tasks={tasks} />
           )}
         </Tabs>
       </div>

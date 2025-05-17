@@ -22,17 +22,34 @@ const Login = () => {
   const handleLogin = async (data) => {
     try {
       const res = await login(data).unwrap();
+      console.log('Login response:', res);
 
-      dispatch(setCredentials(res));
-      navigate("/");
+      // Store the user data in Redux and localStorage
+      dispatch(setCredentials({ ...res, isAuthenticated: true }));
+      
+      // Verify the data was saved
+      const savedUser = JSON.parse(localStorage.getItem('userInfo'));
+      console.log('Saved user info:', savedUser);
+      
+      // Check if login was successful
+      if (savedUser && savedUser.isAuthenticated) {
+        toast.success('Login successful!');
+        navigate("/dashboard");
+      } else {
+        toast.error('Failed to save authentication data');
+      }
     } catch (err) {
-      toast.error(err?.data?.message || err.error);
+      console.error('Login error:', err);
+      toast.error(err?.data?.message || err.error || 'Login failed');
     }
   };
 
   useEffect(() => {
-    user && navigate("/dashboard");
-  }, [user]);
+    // If already logged in, redirect to dashboard
+    if (user?.isAuthenticated) {
+      navigate("/dashboard");
+    }
+  }, [user, navigate]);
 
   return (
     <div className='w-full min-h-screen flex items-center justify-center flex-col lg:flex-row bg-[#f3f4f6] dark:bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-[#302943] via-slate-900 to-black'>

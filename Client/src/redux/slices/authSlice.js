@@ -13,12 +13,18 @@ const authSlice = createSlice({
   initialState,
   reducers: {
     setCredentials: (state, action) => {
-      state.user = action.payload;
-      localStorage.setItem("userInfo", JSON.stringify(action.payload));
+      state.user = { ...action.payload, isAuthenticated: true };
+      localStorage.setItem("userInfo", JSON.stringify(state.user));
     },
-    logout: (state, action) => {
+    logout: (state) => {
       state.user = null;
       localStorage.removeItem("userInfo");
+      // Clear any session cookies
+      document.cookie.split(";").forEach((c) => {
+        document.cookie = c
+          .replace(/^ +/, "")
+          .replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/");
+      });
     },
     setOpenSidebar: (state, action) => {
       state.isSidebarOpen = action.payload;
@@ -27,5 +33,9 @@ const authSlice = createSlice({
 });
 
 export const { setCredentials, logout, setOpenSidebar } = authSlice.actions;
+
+// Selectors
+export const selectIsAuthenticated = (state) => 
+  state.auth.user?.isAuthenticated ?? false;
 
 export default authSlice.reducer;

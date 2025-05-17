@@ -165,9 +165,15 @@ const Users = () => {
             <table className='w-full mb-5'>
               <TableHeader />
               <tbody>
-                {data?.map((user, index) => (
-                  <TableRow key={index} user={user} />
-                ))}
+                   {data && data.length > 0 ? (
+        data.map((user, index) => (
+            <TableRow key={index} user={user} />
+        ))
+    ) : (
+        <tr>
+            <td colSpan="5" className="text-center">No users found</td>
+        </tr>
+    )}
               </tbody>
             </table>
           </div>

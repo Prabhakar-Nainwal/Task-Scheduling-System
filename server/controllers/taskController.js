@@ -3,6 +3,7 @@ import Notice from "../models/notis.js";
 import Task from "../models/taskModel.js";
 import User from "../models/userModel.js";
 
+
 const createTask = asyncHandler(async (req, res) => {
   try {
     const { userId } = req.user;
@@ -446,6 +447,119 @@ const dashboardStatistics = asyncHandler(async (req, res) => {
   }
 });
 
+const autoAssignTasks = asyncHandler(async (req, res) => {
+  try {
+    // Get all active users
+    const users = await User.find({ isActive: true }).select('_id name tasks');
+    
+    if (users.length === 0) {
+      return res.status(400).json({ 
+        status: false, 
+        message: "No active users available for assignment" 
+      });
+    }
+
+    // Get all unassigned tasks (tasks with empty team or single-person teams that need balancing)
+    const unassignedTasks = await Task.find({ 
+      isTrashed: false,
+      $or: [
+        { team: { $size: 0 } }, // Completely unassigned
+        { team: { $size: 1 } }  // Single person assigned (for rebalancing)
+      ]
+    });
+
+    if (unassignedTasks.length === 0) {
+      return res.status(200).json({ 
+        status: true, 
+        message: "No tasks available for auto assignment" 
+      });
+    }
+
+    // Calculate current workload for each user (greedy algorithm preparation)
+    const userWorkloads = await Promise.all(
+      users.map(async (user) => {
+        const activeTasks = await Task.countDocuments({
+          team: user._id,
+          isTrashed: false,
+          stage: { $in: ['todo', 'in progress'] }
+        });
+        return {
+          userId: user._id,
+          name: user.name,
+          currentTasks: activeTasks
+        };
+      })
+    );
+
+    // Sort users by current workload (ascending) - greedy approach
+    userWorkloads.sort((a, b) => a.currentTasks - b.currentTasks);
+
+    let assignmentCount = 0;
+    let userIndex = 0;
+
+    // Assign tasks using greedy algorithm
+    for (const task of unassignedTasks) {
+      // Get the user with the least workload
+      const selectedUser = userWorkloads[userIndex];
+      
+      // Assign task to user
+      task.team = [selectedUser.userId];
+      
+      // Add assignment activity
+      const activity = {
+        type: "assigned",
+        activity: `Task auto-assigned to ${selectedUser.name} using workload balancing algorithm`,
+        by: req.user.userId,
+      };
+      task.activities.push(activity);
+      
+      await task.save();
+
+      // Update user's task count for next iteration
+      selectedUser.currentTasks += 1;
+      
+      // Move to next user (round-robin within greedy selection)
+      userIndex = (userIndex + 1) % users.length;
+      
+      // Re-sort to maintain greedy property
+      userWorkloads.sort((a, b) => a.currentTasks - b.currentTasks);
+      userIndex = 0; // Reset to user with least workload
+      
+      assignmentCount++;
+
+      // Create notification for assigned user
+      await Notice.create({
+        team: [selectedUser.userId],
+        text: `New task "${task.title}" has been auto-assigned to you using workload balancing`,
+        task: task._id,
+      });
+    }
+
+    // Update user task arrays
+    for (const task of unassignedTasks) {
+      for (const userId of task.team) {
+        await User.findByIdAndUpdate(userId, { 
+          $addToSet: { tasks: task._id } 
+        });
+      }
+    }
+
+    res.status(200).json({
+      status: true,
+      message: `Successfully auto-assigned ${assignmentCount} tasks using greedy workload balancing algorithm`,
+      assignedTasks: assignmentCount,
+      algorithm: "Greedy Workload Balancing"
+    });
+
+  } catch (error) {
+    console.log(error);
+    return res.status(500).json({ 
+      status: false, 
+      message: error.message 
+    });
+  }
+});
+
 export {
   createSubTask,
   createTask,
@@ -459,4 +573,5 @@ export {
   updateSubTaskStage,
   updateTask,
   updateTaskStage,
+  autoAssignTasks,
 };

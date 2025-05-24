@@ -105,6 +105,15 @@ export const postApiSlice = apiSlice.injectEndpoints({
         credentials: "include",
       }),
     }),
+    
+    autoAssignTasks: builder.mutation({
+      query: () => ({
+        url: `${TASKS_URL}/auto-assign`,
+        method: "POST",
+        body: {},
+        credentials: "include",
+      }),
+    }),
   }),
 });
 
@@ -121,4 +130,5 @@ export const {
   useGetDasboardStatsQuery,
   useChangeTaskStageMutation,
   useChangeSubTaskStatusMutation,
+  useAutoAssignTasksMutation,
 } = postApiSlice;

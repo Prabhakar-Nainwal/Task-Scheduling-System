@@ -70,6 +70,14 @@ export const userApiSlice = apiSlice.injectEndpoints({
         credentials: "include",
       }),
     }),
+   getUser: builder.query({
+      query: () => ({
+        url: `${USERS_URL}/profile`,
+        method: "GET",
+        credentials: "include",
+      }),
+      providesTags: ["User"],
+    }),
   }),
 });
 
@@ -82,4 +90,5 @@ export const {
   useGetNotificationsQuery,
   useMarkNotiAsReadMutation,
   useGetUserTaskStatusQuery,
+  useGetUserQuery,
 } = userApiSlice;

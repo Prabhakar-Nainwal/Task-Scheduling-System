@@ -12,6 +12,7 @@ import {
   updateSubTaskStage,
   updateTask,
   updateTaskStage,
+  autoAssignTasks,
 } from "../controllers/taskController.js";
 import { isAdminRoute, protectRoute } from "../middleware/authMiddleware.js";
 
@@ -20,6 +21,7 @@ const router = express.Router();
 router.post("/create", protectRoute, isAdminRoute, createTask);
 router.post("/duplicate/:id", protectRoute, isAdminRoute, duplicateTask);
 router.post("/activity/:id", protectRoute, postTaskActivity);
+router.post("/auto-assign", protectRoute, isAdminRoute, autoAssignTasks);
 
 router.get("/dashboard", protectRoute, dashboardStatistics);
 router.get("/", protectRoute, getTasks);

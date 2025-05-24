@@ -80,21 +80,19 @@ const logoutUser = (req, res) => {
   res.status(200).json({ message: "Logged out successfully" });
 };
 
-// @GET -   Get user profile
-// const getUserProfile = asyncHandler(async (req, res) => {
-//   const { userId } = req.user;
+// @GET - Get user profile
+const getUserProfile = asyncHandler(async (req, res) => {
+  const { userId } = req.user
 
-//   const user = await User.findById(userId);
+  const user = await User.findById(userId).select("-password")
 
-//   user.password = undefined;
-
-//   if (user) {
-//     res.json({ ...user });
-//   } else {
-//     res.status(404);
-//     throw new Error("User not found");
-//   }
-// });
+  if (user) {
+    res.json(user)
+  } else {
+    res.status(404)
+    throw new Error("User not found")
+  }
+});
 
 const getTeamList = asyncHandler(async (req, res) => {
   const { search } = req.query;
@@ -261,6 +259,8 @@ const deleteUserProfile = asyncHandler(async (req, res) => {
   res.status(200).json({ status: true, message: "User deleted successfully" });
 });
 
+
+
 export {
   activateUserProfile,
   changeUserPassword,
@@ -273,4 +273,5 @@ export {
   markNotificationRead,
   registerUser,
   updateUserProfile,
+  getUserProfile,
 };
